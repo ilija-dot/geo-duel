@@ -6,8 +6,12 @@ extends Node
 ## Use them with await, e.g.:  var res := await Net.create_duel("K7M2QX")
 
 
+## Offline tests set this to false so they never touch the live server.
+var enabled := true
+
+
 func is_configured() -> bool:
-	return SupabaseConfig.URL != "" and SupabaseConfig.ANON_KEY != ""
+	return enabled and SupabaseConfig.URL != "" and SupabaseConfig.ANON_KEY != ""
 
 
 # --- Player -------------------------------------------------------------------

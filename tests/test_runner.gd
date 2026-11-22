@@ -36,6 +36,7 @@ func _sample_questions() -> Array:
 
 
 func _ready() -> void:
+	Net.enabled = false  # never contact the live server from these tests
 	Save.path = "user://test_save.json"
 	Save.data = Save._defaults()
 	var qpath := "user://test_questions.json"
@@ -87,9 +88,9 @@ func _ready() -> void:
 	Save.load_game()
 	check(Save.owns("ocean"), "purchase survives save + load")
 
-	print("Online (not configured)")
+	print("Online switched off")
 	var res: Dictionary = await Net.create_duel("AAAAAA")
-	check(not Net.is_configured() and not res["ok"] and res["error"] == "offline", "without Supabase settings, online calls fail safely")
+	check(not res["ok"] and res["error"] == "offline", "without a server, online calls fail safely")
 
 	print("Play a practice game")
 	var main: Main = load("res://scenes/main.tscn").instantiate()
@@ -106,7 +107,10 @@ func _ready() -> void:
 			await get_tree().process_frame
 		else:
 			quiz._choose(3 if i < 5 else 4)  # 5x rare correct (100), 4x wrong
-		await get_tree().create_timer(0.15).timeout
+		for wait in 50:  # wait for the next question (or the result screen)
+			await get_tree().create_timer(0.02).timeout
+			if not (main.current is QuizScreen) or quiz._answering:
+				break
 	check(main.current is ResultScreen, "result screen after 10 questions")
 	var result: Dictionary = (main.current as ResultScreen).result
 	check(QuestionBank.total(result["question_ids"], result["picks"]) == 500, "score = 5 x 100 (wrong and timeout = 0)")
