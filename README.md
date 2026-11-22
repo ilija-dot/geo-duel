@@ -18,7 +18,7 @@ Built with **Godot 4.7** (GDScript) and **Supabase** (online duels).
 1. Create a free project at supabase.com.
 2. **Authentication → Sign In / Providers → allow anonymous sign-ins** (players get an account
    automatically, with no email).
-3. **SQL Editor → New query**: paste and run, in this order: `supabase/schema.sql`, `supabase/002_avatars_leaderboard.sql`, `supabase/003_difficulty_levels.sql`, `supabase/004_accounts.sql`, `supabase/005_delete_account.sql`, `supabase/seed_questions.sql`. Then **Authentication → Sign In / Providers → Email → turn off "Confirm email"** (needed for email accounts without your own email server).
+3. **SQL Editor → New query**: paste and run, in this order: `supabase/schema.sql`, `supabase/002_avatars_leaderboard.sql`, `supabase/003_difficulty_levels.sql`, `supabase/004_accounts.sql`, `supabase/005_delete_account.sql`, `supabase/006_wallet.sql`, `supabase/seed_questions.sql`. Then **Authentication → Sign In / Providers → Email → turn off "Confirm email"** (needed for email accounts without your own email server).
 4. **Project Settings → API**: copy the Project URL and the `anon public` key into
    `scripts/supabase_config.gd`. (Never use the `service_role` key in the app.)
 
@@ -57,7 +57,7 @@ GODOT="path/to/godot_console.exe" bash tools/publish_web.sh
 Builds the web export and pushes it to the `gh-pages` branch.
 
 ## Money
-Coins come from playing; gems from duel wins (and later real-money packs via Google Play / Apple
+Coins, gems and purchases are stored on the player's account (server), so they follow them to every device; the server pays rewards and checks prices. Coins come from playing; gems from duel wins (and later real-money packs via Google Play / Apple
 billing; see `_get_gems()` in `shop_screen.gd`). Both only buy color themes, so paying never gives
 an advantage, and there are no loot boxes.
 

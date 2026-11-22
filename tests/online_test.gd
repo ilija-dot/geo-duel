@@ -119,6 +119,29 @@ func _ready() -> void:
 		all_two = all_two and right == 2
 	check(all_two, "every hard question shows exactly 2 right tiles")
 
+	print("Wallet on the account")
+	as_player(leo)
+	Save.data["coins"] = 999999  # pretend someone edited their save file
+	Save.data["gems"] = 0
+	r = await Net.sync_wallet()
+	check(r["ok"] and Save.coins() <= 2000 + 30, "old device coins imported once, capped (%d)" % Save.coins())
+	var before := Save.coins()
+	Save.data["coins"] = 5
+	r = await Net.sync_wallet()
+	check(r["ok"] and Save.coins() == before, "the server's balance wins over the device")
+	r = await Net.buy_item("ocean")
+	check(r["ok"] and "ocean" in Save.data["owned"] and Save.coins() == before - 100, "buying a theme is charged on the server")
+	r = await Net.equip_theme("ocean")
+	check(r["ok"] and Save.data["equipped"] == "ocean", "equipped theme saved on the account")
+	r = await Net.buy_item("acc_crown")
+	check(not r["ok"] and str(r["error"]).contains("not enough"), "can't buy the crown without gems")
+	r = await Net.practice_reward([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], [0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+	check(r["ok"] and int(r["data"]) >= 0 and int(r["data"]) <= 100, "practice coins paid by the server (%d)" % int(r.get("data", -1)))
+	as_player(ana)
+	Save.data["coins"] = 0
+	r = await Net.sync_wallet()
+	check(r["ok"] and Save.gems() >= 0, "Ana's wallet loads")
+
 	print("Email accounts")
 	var email := "geoduel.test.%d@gmail.com" % (randi() % 1000000000)
 	as_player(ana)

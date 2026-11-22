@@ -143,6 +143,7 @@ func claim_win(duel_id: String) -> int:
 	if duel_id in data["claimed_wins"]:
 		return 0
 	data["claimed_wins"].append(duel_id)
-	data["gems"] = gems() + WIN_GEMS
+	if not Net.is_configured():  # online, the server already paid the gems
+		data["gems"] = gems() + WIN_GEMS
 	save_game()
 	return WIN_GEMS

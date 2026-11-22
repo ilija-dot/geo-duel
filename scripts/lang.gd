@@ -143,7 +143,7 @@ const STRINGS := {
 	"have_account": ["Веќе имаш профил?", "Already have an account?"],
 	"logged_in_as": ["Најавен/а како %s", "Logged in as %s"],
 	"guest": ["Гостин", "Guest"],
-	"logout_note": ["Монетите и купените работи остануваат на овој уред.", "Coins and purchases stay on this device."],
+	"logout_note": ["Монетите и купените работи остануваат на твојот профил.", "Your coins and purchases stay on your account."],
 	"account_created": ["Профилот е направен! Најави се со %s на кој било уред.", "Account created! Log in with %s on any device."],
 	"logged_in": ["Најавен/а си!", "You're logged in!"],
 	"err_email": ["Внеси точна е-пошта.", "Enter a valid email address."],

@@ -71,7 +71,22 @@ func _on_save() -> void:
 	if not _acc_owned():
 		var acc := AvatarParts.accessory(int(_avatar["acc"]))
 		var item := {"id": AvatarParts.item_id(int(_avatar["acc"])), "price": acc["price"], "currency": acc["currency"]}
-		if not Save.buy(item):
+		var bought := false
+		var not_enough := false
+		if Net.is_configured():
+			_status.text = L.t("connecting")
+			var res := await Net.buy_item(str(item["id"]))
+			if not is_inside_tree():
+				return
+			bought = res["ok"]
+			not_enough = str(res.get("error", "")).contains("not enough")
+			if not bought and not not_enough:
+				_status.text = L.t("net_error")
+				return
+		else:
+			bought = Save.buy(item)
+			not_enough = not bought
+		if not bought:
 			_status.text = L.t("not_enough") % (L.t("gems_word") if acc["currency"] == "gems" else L.t("coins_word"))
 			return
 		_refresh()

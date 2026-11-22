@@ -147,8 +147,15 @@ func _finish() -> void:
 		var coins := 0
 		if practice.has("question_ids"):  # no coins for player levels (they could be made too easy)
 			Save.mark_practice_seen(practice["question_ids"])
-			coins = total / 20
-			Save.add_coins(coins)
+			if Net.is_configured():  # the server pays (max 100 coins a day from practice)
+				_question.text = L.t("sending")
+				var res := await Net.practice_reward(practice["question_ids"], _picks)
+				if not is_inside_tree():
+					return
+				coins = int(res["data"]) if res["ok"] else 0
+			else:
+				coins = total / 20
+				Save.add_coins(coins)
 		main.show_result({"round": round, "picks": _picks, "practice": practice, "title": title, "coins": coins})
 		return
 	_submit()
@@ -167,8 +174,10 @@ func _submit() -> void:
 	if res["ok"]:
 		var coins := 0
 		if not (res["data"].get("level") is Dictionary):  # level duels pay nothing
-			coins = int(res["data"]["my_score"]) / 10
-			Save.add_coins(coins)
+			coins = int(res["data"]["my_score"]) / 10  # already paid by the server
+		await Net.sync_wallet()
+		if not is_inside_tree():
+			return
 		main.show_result({"duel": res["data"], "coins": coins})
 	elif str(res["error"]).contains("already played"):
 		main.show_duels()

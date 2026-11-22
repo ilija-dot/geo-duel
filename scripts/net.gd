@@ -99,6 +99,65 @@ func report_level(code: String) -> Dictionary:
 	return await _rpc("report_level", {"code": code})
 
 
+# --- Wallet (coins, gems, purchases, equipped theme) -------------------------------------
+# The server owns the wallet; Save keeps a copy so screens can show it instantly.
+# Every wallet call returns {"ok", "data": wallet} and updates that copy.
+
+## Copies a wallet from the server into Save. Returns true if the equipped theme changed.
+func apply_wallet(w: Variant) -> bool:
+	if not (w is Dictionary):
+		return false
+	var old_theme := str(Save.data["equipped"])
+	Save.data["coins"] = int(w.get("coins", 0))
+	Save.data["gems"] = int(w.get("gems", 0))
+	Save.data["owned"] = Array(w.get("owned", Save.STARTER_THEMES))
+	Save.data["equipped"] = str(w.get("equipped", "classic"))
+	Save.save_game()
+	return old_theme != str(Save.data["equipped"])
+
+
+## Gets the account's wallet. The first time, coins saved on this device are moved onto the account.
+func sync_wallet() -> Dictionary:
+	var res := await _rpc("my_wallet", {})
+	if res["ok"] and res["data"] is Dictionary and not res["data"].get("imported", true):
+		res = await _rpc("import_wallet", {"c": Save.coins(), "g": Save.gems(), "own": Save.data["owned"]})
+	if res["ok"]:
+		res["theme_changed"] = apply_wallet(res["data"])
+	return res
+
+
+func buy_item(item_id: String) -> Dictionary:
+	var res := await _rpc("buy_item", {"item": item_id})
+	if res["ok"]:
+		apply_wallet(res["data"])
+	return res
+
+
+func equip_theme(theme_id: String) -> Dictionary:
+	var res := await _rpc("equip_theme", {"theme": theme_id})
+	if res["ok"]:
+		apply_wallet(res["data"])
+	return res
+
+
+## Asks the server to pay practice coins (score / 20, max 100 a day). data = coins paid.
+func practice_reward(question_ids: Array, picks: Array) -> Dictionary:
+	var res := await _rpc("practice_reward", {"question_ids": question_ids, "picks": picks})
+	if res["ok"]:
+		apply_wallet(res["data"]["wallet"])
+		res["data"] = int(res["data"]["coins"])
+	return res
+
+
+## After logging out or deleting, this device starts again with an empty guest wallet.
+func _reset_local_wallet() -> void:
+	Save.data["coins"] = 0
+	Save.data["gems"] = 0
+	Save.data["owned"] = Save.STARTER_THEMES.duplicate()
+	Save.data["equipped"] = "classic"
+	Save.data["claimed_wins"] = []
+
+
 # --- Email accounts -------------------------------------------------------------------
 # Every device starts as a guest (anonymous account). create_account() upgrades that same
 # account with an email + password, so the player ID and duels stay. log_in() signs in to an
@@ -137,6 +196,8 @@ func log_in(email: String, password: String) -> Dictionary:
 		Save.data["nickname"] = str(p["nickname"])
 		Save.data["avatar"] = AvatarParts.normalize(p.get("avatar", {}))
 		Save.data["avatar_synced"] = true
+		_reset_local_wallet()  # this device's guest coins don't merge into the account
+		apply_wallet(p.get("wallet"))
 	Save.save_game()
 	if str(Save.data["player_id"]) == "":
 		return await register()  # account without a player yet (shouldn't happen)
@@ -153,6 +214,7 @@ func log_out() -> void:
 	Save.data["nickname"] = ""
 	Save.data["avatar"] = {}
 	Save.data["friends"] = []
+	_reset_local_wallet()
 	Save.save_game()
 
 
@@ -166,7 +228,7 @@ func delete_account() -> Dictionary:
 		Save.data["nickname"] = ""
 		Save.data["avatar"] = {}
 		Save.data["friends"] = []
-		Save.data["claimed_wins"] = []
+		_reset_local_wallet()
 		Save.save_game()
 	return res
 

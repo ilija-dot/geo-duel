@@ -52,14 +52,34 @@ func _currency_word(currency: String) -> String:
 
 
 func _buy(item: Dictionary) -> void:
-	if Save.buy(item):
+	if not Net.is_configured():
+		if Save.buy(item):
+			_equip(item["id"])
+		else:
+			_status.text = L.t("not_enough") % _currency_word(item["currency"])
+		return
+	_status.text = L.t("connecting")
+	var res := await Net.buy_item(str(item["id"]))
+	if not is_inside_tree():
+		return
+	if res["ok"]:
 		_equip(item["id"])
-	else:
+	elif str(res["error"]).contains("not enough"):
 		_status.text = L.t("not_enough") % _currency_word(item["currency"])
+	else:
+		_status.text = L.t("net_error")
 
 
 func _equip(id: String) -> void:
-	Save.equip(id)
+	if Net.is_configured():
+		var res := await Net.equip_theme(id)
+		if not is_inside_tree():
+			return
+		if not res["ok"]:
+			_status.text = L.t("net_error")
+			return
+	else:
+		Save.equip(id)
 	main.refresh_theme()
 	main.show_shop()
 

@@ -5,6 +5,7 @@ extends Screen
 var _id_label: Label
 var _status: Label
 var _duels_button: Button
+var _wallet_label: Label
 
 
 func build() -> void:
@@ -24,7 +25,7 @@ func build() -> void:
 	_id_label = label("", 30, info)
 	_id_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	label(L.t("logged_in_as") % Save.data["email"] if Net.is_logged_in() else L.t("guest"), 20, info)
-	label(L.t("wallet") % [Save.coins(), Save.gems()], 22, info)
+	_wallet_label = label(L.t("wallet") % [Save.coins(), Save.gems()], 22, info)
 	var copy := button(L.t("copy"), _copy_id, info)
 	copy.custom_minimum_size = Vector2(170, 56)
 
@@ -76,6 +77,15 @@ func _register() -> void:
 		return
 	_status.text = ""
 	_show_id()
+	var wallet := await Net.sync_wallet()
+	if not is_inside_tree():
+		return
+	if wallet["ok"]:
+		if wallet.get("theme_changed", false):
+			main.refresh_theme()
+			main.show_menu()  # redraw in the account's theme
+			return
+		_wallet_label.text = L.t("wallet") % [Save.coins(), Save.gems()]
 	if not Save.data["avatar_synced"]:
 		var av := await Net.set_avatar(Save.avatar())
 		if av["ok"]:

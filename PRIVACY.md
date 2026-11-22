@@ -9,7 +9,8 @@ Geo Duel is an educational geography game for students. We only collect what the
 - Your **nickname, player ID and avatar**.
 - Your **duels**: the questions, the answers you picked and the points.
 - **Levels you create**, and reports of inappropriate levels.
-- **On your device only**: coins, gems, bought themes, language and your friends list.
+- Your **coins, gems and bought items**, so they follow you to every device.
+- **On your device only**: language and your friends list.
 
 ## Who sees what
 Other players only see your nickname, avatar, player ID and wins (in duels and on the leaderboard).
