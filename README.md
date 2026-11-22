@@ -1,48 +1,64 @@
-# Tile Sprint
+# Geo Duel / Гео Дуел
 
-A daily speed puzzle for phones. Tap the numbers 1, 2, 3… in order on a shuffled grid,
-five rounds a day. Everyone gets the **same boards each day**, so you can compare times with friends.
+A mobile geography quiz for 13–15 year olds. Challenge a friend with their player ID; you both
+answer the same 10 questions from the 8th-grade geography textbook
+(„Географија за VIII одделение“, ARS Studio). Each question has 8 tiles. Several are correct,
+and **the rarer the correct answer you pick, the more points you get** (10 / 25 / 50 / 100);
+wrong answers and running out of time (20 s) score 0. Macedonian and English.
 
-Built with **Godot 4.7** (GDScript). Portrait, mobile renderer.
+Built with **Godot 4.7** (GDScript) and **Supabase** (online duels).
 
-## How to run it
-1. Open Godot → **Import** → pick this folder's `project.godot`.
-2. Press **F5** (or the ▶ button) to play.
+## Run it
+1. Open Godot → **Import** → this folder's `project.godot` → press **F5**.
+2. Without Supabase settings the game runs in **practice mode** (solo, offline).
 
-## How it works
-| Feature | Where |
+## Turn on online duels (Supabase, free)
+1. Create a free project at supabase.com.
+2. **Authentication → Sign In / Providers → allow anonymous sign-ins** (players get an account
+   automatically, with no email).
+3. **SQL Editor → New query**: paste and run `supabase/schema.sql`, then `supabase/seed_questions.sql`.
+4. **Project Settings → API**: copy the Project URL and the `anon public` key into
+   `scripts/supabase_config.gd`. (Never use the `service_role` key in the app.)
+
+How it works: every player gets a 6-character ID (e.g. `K7M2QX`). Starting a duel asks the server
+for 10 questions that **neither player has had before**. Each player plays their turn when they
+like; the server scores the answers from the answer key, so scores can't be faked.
+
+## Questions
+- `data/questions.json`: 500 questions, grouped by the book's lessons (Africa, North/South America,
+  Australia & Oceania, polar regions).
+- To change questions, edit the JSON, then run
+  `godot --headless --path . -s tools/build_questions.gd`. It checks every question and regenerates
+  `supabase/seed_questions.sql`. Re-run that SQL in Supabase afterwards.
+
+## Code map
+| What | Where |
 |---|---|
-| Today's puzzle number + seeded boards (same for everyone) | `scripts/daily.gd` |
-| Saving coins, gems, themes, streaks, friends (local JSON only) | `scripts/save_data.gd` |
-| Ratings (green/yellow/red), share message, friend codes | `scripts/scoring.gd` |
+| Quiz (tiles, timer, reveal) | `scripts/screens/quiz_screen.gd` |
+| Duels list / challenge a friend | `scripts/screens/duels_screen.gd`, `challenge_screen.gd` |
+| Online calls (Supabase REST) | `scripts/net.gd` |
+| Database tables, rules, functions | `supabase/schema.sql` |
+| Scoring, tile order | `scripts/question_bank.gd` |
+| All UI text (MK/EN) | `scripts/lang.gd` |
+| Saved progress, coins, gems | `scripts/save_data.gd` |
 | Shop themes (cosmetic only) | `scripts/theme_catalog.gd` |
-| Colors / button style | `scripts/ui.gd` |
-| Screens (menu, game, results, friends, shop) | `scripts/screens/` |
-
-**Friends without a server:** after the daily, tap *Copy result to share* and paste it in a group chat.
-Friends paste your message into their *Friends* screen to see who was fastest today.
-
-**Money:** coins come from the daily (+ streak bonus). Gems come free every 7-day streak and,
-later, from real-money packs. Both only buy color themes, so paying never makes anyone faster.
 
 ## Tests
 ```
 godot --headless --path . res://tests/test_runner.tscn
 ```
-`tests/screenshots.tscn` saves a picture of each screen (set the `SHOT_DIR` env var to a folder).
 
-## Next steps
-- **Play it on your phone:** Project → Install Android Build Template, install Android SDK + JDK 17,
-  then Project → Export → Android.
-- **Real gem purchases:** add the Godot Google Play Billing plugin, and call `Save.add_gems()`
-  only after Google confirms payment (see `_get_gems()` in `shop_screen.gd`).
-  All purchases must go through Google Play / Apple billing. Don't add paid loot boxes.
-- **Ideas:** sound + vibration on taps, more cosmetics (tap effects, tile shapes), a native
-  "Share" button instead of copy-to-clipboard.
-- **Known gap:** quitting the daily halfway lets you see the boards and try again. Consider
-  counting a started daily as played.
+## Publish the web version (GitHub Pages)
+```
+GODOT="path/to/godot_console.exe" bash tools/publish_web.sh
+```
+Builds the web export and pushes it to the `gh-pages` branch.
+
+## Money
+Coins come from playing; gems from duel wins (and later real-money packs via Google Play / Apple
+billing; see `_get_gems()` in `shop_screen.gd`). Both only buy color themes, so paying never gives
+an advantage, and there are no loot boxes.
 
 ## Privacy
-The game collects no personal data: no accounts, no ads, no analytics, nothing sent online.
-Nicknames stay on the phone unless the player shares a result. Keep it that way, or check the
-COPPA / GDPR rules before adding ads, analytics or online features.
+Players use a nickname and a random ID; no email, real name, ads or analytics. The server stores
+only the ID, nickname and duel answers. Check COPPA / GDPR rules before adding ads, analytics or chat.
