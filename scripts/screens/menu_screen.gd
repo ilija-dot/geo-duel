@@ -15,6 +15,7 @@ func build() -> void:
 	var id_row := row()
 	id_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	_id_label = label("", 32, id_row)
+	_id_label.autowrap_mode = TextServer.AUTOWRAP_OFF
 	var copy := button(L.t("copy"), _copy_id, id_row)
 	copy.custom_minimum_size = Vector2(170, 70)
 

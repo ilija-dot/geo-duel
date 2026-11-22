@@ -20,7 +20,7 @@ func build() -> void:
 	else:
 		label(L.t("duel_with") % duel["opponent_name"], 38)
 		if duel["their_done"]:
-			var theirs := int(duel["their_score"])
+			var theirs := QuestionBank.total(ids, their_picks) if not their_picks.is_empty() else int(duel["their_score"])
 			label("%d : %d" % [mine, theirs], 84)
 			label("%s  -  %s" % [L.t("you"), duel["opponent_name"]], 26)
 			var verdict := "you_won" if mine > theirs else ("you_lost" if mine < theirs else "draw")
