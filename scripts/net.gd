@@ -304,6 +304,9 @@ func _call(method: int, path: String, body: Variant = null, needs_login := true)
 
 	var http := HTTPRequest.new()
 	http.timeout = 15.0
+	# Browsers already unpack gzip replies; letting Godot unpack them again fails on the web
+	# ("network" error after a duel was in fact created). So don't ask Godot to do it.
+	http.accept_gzip = false
 	add_child(http)
 	var err := http.request(SupabaseConfig.URL + path, headers, method,
 		"" if body == null else JSON.stringify(body))

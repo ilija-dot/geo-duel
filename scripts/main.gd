@@ -10,6 +10,12 @@ func _ready() -> void:
 	# Main keeps listening for F1 while the game is paused; screens pause normally.
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	refresh_theme()
+	if "--selftest" in OS.get_cmdline_user_args() or (OS.has_feature("web") and str(JavaScriptBridge.eval("window.location.search", true)).contains("selftest=1")):
+		var st := SelfTest.new()
+		st.main = self
+		add_child(st)
+		st.run()
+		return
 	var invite := _invite_from_url()
 	if invite.has("id"):
 		show_invite(invite)
