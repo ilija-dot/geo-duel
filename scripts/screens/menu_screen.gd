@@ -23,6 +23,7 @@ func build() -> void:
 	me.add_child(info)
 	_id_label = label("", 30, info)
 	_id_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	label(L.t("logged_in_as") % Save.data["email"] if Net.is_logged_in() else L.t("guest"), 20, info)
 	label(L.t("wallet") % [Save.coins(), Save.gems()], 22, info)
 	var copy := button(L.t("copy"), _copy_id, info)
 	copy.custom_minimum_size = Vector2(170, 56)
@@ -43,6 +44,7 @@ func build() -> void:
 	var r2 := row()
 	button(L.t("levels"), main.show_levels, r2).size_flags_horizontal = SIZE_EXPAND_FILL
 	button(L.t("avatar"), main.show_avatar, r2).size_flags_horizontal = SIZE_EXPAND_FILL
+	button(L.t("account"), main.show_account, r2).size_flags_horizontal = SIZE_EXPAND_FILL
 	var r3 := row()
 	button(L.t("shop"), main.show_shop, r3).size_flags_horizontal = SIZE_EXPAND_FILL
 	button(L.t("other_lang"), _toggle_language, r3).size_flags_horizontal = SIZE_EXPAND_FILL

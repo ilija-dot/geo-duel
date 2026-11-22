@@ -30,6 +30,7 @@ func _defaults() -> Dictionary:
 		"avatar": {},  # part numbers, see AvatarParts
 		"avatar_synced": true,  # false = not yet saved on the server
 		"difficulty": "medium",  # last chosen difficulty
+		"email": "",  # set when logged in with an email account (stays on this device only)
 	}
 
 

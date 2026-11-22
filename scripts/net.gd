@@ -6,6 +6,9 @@ extends Node
 ## Use them with await, e.g.:  var res := await Net.create_duel("K7M2QX")
 
 
+## Where the web version of the game lives (used for invite links).
+const GAME_URL := "https://ilija-dot.github.io/geo-duel/"
+
 ## Offline tests set this to false so they never touch the live server.
 var enabled := true
 
@@ -96,6 +99,87 @@ func report_level(code: String) -> Dictionary:
 	return await _rpc("report_level", {"code": code})
 
 
+# --- Email accounts -------------------------------------------------------------------
+# Every device starts as a guest (anonymous account). create_account() upgrades that same
+# account with an email + password, so the player ID and duels stay. log_in() signs in to an
+# existing account on any device.
+
+## Turns the current guest into an email account (keeps the player ID).
+func create_account(email: String, password: String) -> Dictionary:
+	var reg := await register()  # make sure there is a guest account + player first
+	if not reg["ok"]:
+		return reg
+	var res := await _call(HTTPClient.METHOD_PUT, "/auth/v1/user", {"email": email.strip_edges(), "password": password})
+	if not res["ok"]:
+		return res
+	var user: Dictionary = res["data"] if res["data"] is Dictionary else {}
+	if str(user.get("email", "")) != email.strip_edges().to_lower():
+		# Supabase is set to send a confirmation email first.
+		return {"ok": false, "error": "confirm_email", "error_code": "confirm_email"}
+	Save.data["email"] = email.strip_edges().to_lower()
+	Save.save_game()
+	return {"ok": true}
+
+
+## Signs in to an existing account on this device and loads that player.
+func log_in(email: String, password: String) -> Dictionary:
+	var res := await _call(HTTPClient.METHOD_POST, "/auth/v1/token?grant_type=password",
+		{"email": email.strip_edges(), "password": password}, false)
+	if not res["ok"]:
+		return res
+	_store_session(res["data"])
+	Save.data["email"] = email.strip_edges().to_lower()
+	Save.data["player_id"] = ""
+	var profile := await _rpc("my_profile", {})
+	if profile["ok"] and profile["data"] is Dictionary:
+		var p: Dictionary = profile["data"]
+		Save.data["player_id"] = str(p["id"])
+		Save.data["nickname"] = str(p["nickname"])
+		Save.data["avatar"] = AvatarParts.normalize(p.get("avatar", {}))
+		Save.data["avatar_synced"] = true
+	Save.save_game()
+	if str(Save.data["player_id"]) == "":
+		return await register()  # account without a player yet (shouldn't happen)
+	return {"ok": true}
+
+
+## Logs out on this device. Next time the game starts as a new guest.
+func log_out() -> void:
+	if is_configured() and str(Save.data["auth"].get("access_token", "")) != "":
+		await _call(HTTPClient.METHOD_POST, "/auth/v1/logout", {})
+	Save.data["auth"] = {}
+	Save.data["player_id"] = ""
+	Save.data["email"] = ""
+	Save.data["nickname"] = ""
+	Save.data["avatar"] = {}
+	Save.data["friends"] = []
+	Save.save_game()
+
+
+## Deletes this account and everything on the server (player, duels, levels).
+func delete_account() -> Dictionary:
+	var res := await _rpc("delete_my_account", {})
+	if res["ok"]:
+		Save.data["auth"] = {}
+		Save.data["player_id"] = ""
+		Save.data["email"] = ""
+		Save.data["nickname"] = ""
+		Save.data["avatar"] = {}
+		Save.data["friends"] = []
+		Save.data["claimed_wins"] = []
+		Save.save_game()
+	return res
+
+
+func is_logged_in() -> bool:
+	return str(Save.data.get("email", "")) != ""
+
+
+## Invite link for a duel with you, e.g. https://ilija-dot.github.io/geo-duel/?invite=K7M2QX&d=medium
+func invite_link(difficulty: String) -> String:
+	return "%s?invite=%s&d=%s" % [GAME_URL, Save.data["player_id"], difficulty]
+
+
 # --- Login (anonymous) ----------------------------------------------------------
 
 func _ensure_session() -> Dictionary:
@@ -107,18 +191,32 @@ func _ensure_session() -> Dictionary:
 	if auth.get("refresh_token", "") != "":
 		res = await _call(HTTPClient.METHOD_POST, "/auth/v1/token?grant_type=refresh_token",
 			{"refresh_token": auth["refresh_token"]}, false)
+		if not res["ok"] and int(res.get("code", 0)) in [400, 401, 403]:
+			# The saved login is no longer valid (e.g. logged out elsewhere).
+			Save.data["auth"] = {}
+			if is_logged_in():
+				Save.data["email"] = ""
+				Save.data["player_id"] = ""
+				Save.save_game()
+				return {"ok": false, "error": "session_expired", "error_code": "session_expired"}
+			Save.data["player_id"] = ""
+			res = await _call(HTTPClient.METHOD_POST, "/auth/v1/signup", {"data": {}}, false)
 	else:
 		res = await _call(HTTPClient.METHOD_POST, "/auth/v1/signup", {"data": {}}, false)
 	if not res["ok"]:
 		return res
-	var d: Dictionary = res["data"]
+	_store_session(res["data"])
+	return {"ok": true}
+
+
+func _store_session(d: Dictionary) -> void:
+	var now := int(Time.get_unix_time_from_system())
 	Save.data["auth"] = {
 		"access_token": d.get("access_token", ""),
 		"refresh_token": d.get("refresh_token", ""),
 		"expires_at": int(d.get("expires_at", now + int(d.get("expires_in", 3600)))),
 	}
 	Save.save_game()
-	return {"ok": true}
 
 
 # --- HTTP helpers ------------------------------------------------------------------
@@ -161,6 +259,8 @@ func _call(method: int, path: String, body: Variant = null, needs_login := true)
 	if code >= 200 and code < 300:
 		return {"ok": true, "data": parsed}
 	var message := "HTTP %d" % code
+	var error_code := ""
 	if parsed is Dictionary:
 		message = str(parsed.get("message", parsed.get("error_description", parsed.get("msg", message))))
-	return {"ok": false, "error": message, "code": code}
+		error_code = str(parsed.get("error_code", parsed.get("error", "")))
+	return {"ok": false, "error": message, "error_code": error_code, "code": code}

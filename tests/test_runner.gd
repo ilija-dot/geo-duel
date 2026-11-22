@@ -207,8 +207,21 @@ func _ready() -> void:
 	editor.questions[1]["answers"][0]["p"] = 0
 	check(editor.build_level().get("error") == L.t("err_mix") % 2, "editor: each question needs a right answer")
 
+	print("Accounts & invite links")
+	var q := Main.parse_query("?invite=K7M2QX&d=hard&x=a%20b")
+	check(q.get("invite") == "K7M2QX" and q.get("d") == "hard" and q.get("x") == "a b", "invite link is read from the address")
+	check(Main.parse_query("").is_empty(), "no invite in a normal address")
+	Save.data["player_id"] = "K7M2QX"
+	check(Net.invite_link("hard") == "https://ilija-dot.github.io/geo-duel/?invite=K7M2QX&d=hard", "invite link format")
+	check(AccountScreen.check_form("ana@mail.com", "secret1") == "", "valid email + password accepted")
+	check(AccountScreen.check_form("ana-at-mail", "secret1") == L.t("err_email"), "bad email rejected")
+	check(AccountScreen.check_form("ana@mail.com", "123") == L.t("err_password"), "short password rejected")
+	check(AccountScreen.error_text({"error_code": "invalid_credentials"}) == L.t("err_wrong_login"), "wrong login message")
+	check(AccountScreen.error_text({"error_code": "email_exists"}) == L.t("err_email_taken"), "email taken message")
+	check(not Net.is_logged_in(), "starts as a guest")
+
 	print("Open every screen")
-	for show in [main.show_menu, main.show_challenge.bind({}), main.show_challenge.bind(level), main.show_shop, main.show_avatar, main.show_practice_menu, main.show_levels]:
+	for show in [main.show_menu, main.show_challenge.bind({}), main.show_challenge.bind(level), main.show_shop, main.show_avatar, main.show_practice_menu, main.show_levels, main.show_account, main.show_invite.bind({"id": "ABCDEF", "d": "easy"}), main.show_privacy]:
 		show.call()
 		await get_tree().process_frame
 		check(main.current.box.get_child_count() > 0, "%s builds" % main.current.get_script().get_global_name())

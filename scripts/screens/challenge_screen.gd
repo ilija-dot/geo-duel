@@ -42,9 +42,11 @@ func build() -> void:
 	var buttons := row()
 	button(L.t("paste"), _paste, buttons).size_flags_horizontal = SIZE_EXPAND_FILL
 	button(L.t("find"), _find, buttons).size_flags_horizontal = SIZE_EXPAND_FILL
-	_status = label("", 26)
+	_status = label("", 24)
 	_start = button("", _start_duel)
 	_start.visible = false
+	if level.is_empty():
+		button(L.t("invite_link"), _invite)
 
 	label(L.t("friends"), 32)
 	var list := scroll_list()
@@ -64,6 +66,21 @@ func _set_difficulty(diff: String) -> void:
 	Save.save_game()
 	for key: String in _diff_buttons:
 		(_diff_buttons[key] as Button).set_pressed_no_signal(key == diff)
+
+
+## Copies a link that opens the game straight into a duel with you.
+func _invite() -> void:
+	if str(Save.data["player_id"]) == "":
+		_status.text = L.t("connecting")
+		var res := await Net.register()
+		if not is_inside_tree():
+			return
+		if not res["ok"]:
+			_status.text = L.t("net_error")
+			return
+	var link := Net.invite_link(str(Save.data["difficulty"]))
+	DisplayServer.clipboard_set(link)
+	_status.text = L.t("invite_copied") % link
 
 
 func _paste() -> void:

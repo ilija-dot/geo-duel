@@ -10,7 +10,50 @@ func _ready() -> void:
 	# Main keeps listening for F1 while the game is paused; screens pause normally.
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	refresh_theme()
-	show_menu()
+	var invite := _invite_from_url()
+	if invite.has("id"):
+		show_invite(invite)
+	else:
+		show_menu()
+
+
+## Reads ?invite=K7M2QX&d=medium from the web page address (web version only),
+## then removes it from the address so a reload doesn't open the invite again.
+func _invite_from_url() -> Dictionary:
+	if not OS.has_feature("web"):
+		return {}
+	var query := parse_query(str(JavaScriptBridge.eval("window.location.search", true)))
+	if query.has("invite"):
+		JavaScriptBridge.eval("history.replaceState(null, '', window.location.pathname)", true)
+		return {"id": query["invite"], "d": query.get("d", "medium")}
+	return {}
+
+
+## "?a=1&b=two" -> {"a": "1", "b": "two"}
+static func parse_query(search: String) -> Dictionary:
+	var out := {}
+	for part in search.trim_prefix("?").split("&", false):
+		var kv := part.split("=", true, 1)
+		if kv.size() == 2:
+			out[kv[0].uri_decode()] = kv[1].uri_decode()
+	return out
+
+
+func show_invite(invite: Dictionary) -> void:
+	var screen := InviteScreen.new()
+	screen.invite = invite
+	_swap(screen)
+
+
+func show_account() -> void:
+	_swap(AccountScreen.new())
+
+
+## back = where the Back button goes (defaults to the menu).
+func show_privacy(back := Callable()) -> void:
+	var screen := PrivacyScreen.new()
+	screen.back = back
+	_swap(screen)
 
 
 ## Opens (or closes) the rules & tutorial on top of the current screen. Bound to F1.

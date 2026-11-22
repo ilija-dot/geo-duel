@@ -119,6 +119,34 @@ func _ready() -> void:
 		all_two = all_two and right == 2
 	check(all_two, "every hard question shows exactly 2 right tiles")
 
+	print("Email accounts")
+	var email := "geoduel.test.%d@gmail.com" % (randi() % 1000000000)
+	as_player(ana)
+	r = await Net.create_account(email, "secret-123")
+	check(r["ok"] and Net.is_logged_in(), "Ana turns her guest into an email account (%s)" % r.get("error_code", "ok"))
+	check(str(Save.data["player_id"]) == ana["player_id"], "...and keeps her player ID")
+	as_player(leo)
+	Save.data["email"] = ""
+	r = await Net.create_account(email, "other-pass")
+	check(not r["ok"] and AccountScreen.error_text(r) == L.t("err_email_taken"), "the same email can't be used twice")
+	as_player({})  # a new device
+	Save.data["email"] = ""
+	r = await Net.log_in(email, "wrong-pass")
+	check(not r["ok"] and AccountScreen.error_text(r) == L.t("err_wrong_login"), "wrong password is refused")
+	r = await Net.log_in(email.to_upper(), "secret-123")
+	check(r["ok"] and str(Save.data["player_id"]) == ana["player_id"] and Save.data["nickname"] == "TestAna", "logging in on a new device brings back Ana's player")
+	check(int(Save.avatar()["hair"]) == 4, "...with her avatar")
+	r = await Net.my_duels()
+	check(r["ok"] and (r["data"] as Array).size() >= 2, "...and her duels")
+	await Net.log_out()
+	check(not Net.is_logged_in() and str(Save.data["player_id"]) == "", "log out clears this device")
+	r = await Net.log_in(email, "secret-123")
+	r = await Net.delete_account()
+	check(r["ok"] and str(Save.data["player_id"]) == "", "Ana deletes her account")
+	Save.data["auth"] = {}
+	r = await Net.log_in(email, "secret-123")
+	check(not r["ok"], "a deleted account can't log in any more")
+
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(Save.path))
 	print("TEST_PLAYERS %s %s" % [ana["player_id"], leo["player_id"]])
 	print("\n%s (%d failures)" % ["ALL PASSED" if failures == 0 else "FAILED", failures])
