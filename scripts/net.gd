@@ -1,0 +1,124 @@
+extends Node
+## Autoload "Net": talks to Supabase (the online database) for player IDs and duels.
+##
+## Each phone gets an anonymous account automatically: no email, no password.
+## Every function returns {"ok": true, "data": ...} or {"ok": false, "error": "..."}.
+## Use them with await, e.g.:  var res := await Net.create_duel("K7M2QX")
+
+
+func is_configured() -> bool:
+	return SupabaseConfig.URL != "" and SupabaseConfig.ANON_KEY != ""
+
+
+# --- Player -------------------------------------------------------------------
+
+## Makes sure this phone has an account and a player ID. Also updates the nickname.
+func register() -> Dictionary:
+	var res := await _rpc("register_player", {"nick": Save.nickname()})
+	if res["ok"]:
+		Save.data["player_id"] = str(res["data"])
+		Save.save_game()
+	return res
+
+
+## Looks up a friend's nickname by their ID. data = {"id", "nickname"} or {} if not found.
+func find_player(player_id: String) -> Dictionary:
+	var res := await _call(HTTPClient.METHOD_GET,
+		"/rest/v1/players?select=id,nickname&id=eq.%s" % player_id.uri_encode())
+	if res["ok"]:
+		var rows: Array = res["data"] if res["data"] is Array else []
+		res["data"] = rows[0] if rows.size() > 0 else {}
+	return res
+
+
+# --- Duels --------------------------------------------------------------------
+# A duel (as returned by the server) looks like:
+# {"id", "opponent_id", "opponent_name", "question_ids": [10 ids], "my_picks", "my_score",
+#  "their_picks", "their_score", "their_done", "finished", "created_at"}
+# their_picks/their_score stay hidden until you've played.
+
+## Starts a duel. The server picks 10 questions neither player has seen before.
+func create_duel(opponent_id: String) -> Dictionary:
+	return await _rpc("create_match", {"opponent": opponent_id})
+
+
+func my_duels() -> Dictionary:
+	var res := await _rpc("my_matches", {})
+	if res["ok"] and not (res["data"] is Array):
+		res["data"] = []
+	return res
+
+
+## Sends your answers (answer index per question, -1 = no answer). The server works out the score.
+func submit_picks(duel_id: String, picks: Array) -> Dictionary:
+	return await _rpc("submit_picks", {"match_id": duel_id, "picks": picks})
+
+
+# --- Login (anonymous) ----------------------------------------------------------
+
+func _ensure_session() -> Dictionary:
+	var auth: Dictionary = Save.data["auth"]
+	var now := int(Time.get_unix_time_from_system())
+	if auth.get("access_token", "") != "" and int(auth.get("expires_at", 0)) > now + 60:
+		return {"ok": true}
+	var res: Dictionary
+	if auth.get("refresh_token", "") != "":
+		res = await _call(HTTPClient.METHOD_POST, "/auth/v1/token?grant_type=refresh_token",
+			{"refresh_token": auth["refresh_token"]}, false)
+	else:
+		res = await _call(HTTPClient.METHOD_POST, "/auth/v1/signup", {"data": {}}, false)
+	if not res["ok"]:
+		return res
+	var d: Dictionary = res["data"]
+	Save.data["auth"] = {
+		"access_token": d.get("access_token", ""),
+		"refresh_token": d.get("refresh_token", ""),
+		"expires_at": int(d.get("expires_at", now + int(d.get("expires_in", 3600)))),
+	}
+	Save.save_game()
+	return {"ok": true}
+
+
+# --- HTTP helpers ------------------------------------------------------------------
+
+func _rpc(function_name: String, params: Dictionary) -> Dictionary:
+	return await _call(HTTPClient.METHOD_POST, "/rest/v1/rpc/" + function_name, params)
+
+
+func _call(method: int, path: String, body: Variant = null, needs_login := true) -> Dictionary:
+	if not is_configured():
+		return {"ok": false, "error": "offline"}
+	if needs_login:
+		var session := await _ensure_session()
+		if not session["ok"]:
+			return session
+
+	var headers := PackedStringArray([
+		"apikey: " + SupabaseConfig.ANON_KEY,
+		"Content-Type: application/json",
+	])
+	if needs_login:
+		headers.append("Authorization: Bearer " + str(Save.data["auth"]["access_token"]))
+
+	var http := HTTPRequest.new()
+	http.timeout = 15.0
+	add_child(http)
+	var err := http.request(SupabaseConfig.URL + path, headers, method,
+		"" if body == null else JSON.stringify(body))
+	if err != OK:
+		http.queue_free()
+		return {"ok": false, "error": "network"}
+	var result: Array = await http.request_completed
+	http.queue_free()
+
+	if int(result[0]) != HTTPRequest.RESULT_SUCCESS:
+		return {"ok": false, "error": "network"}
+	var code: int = result[1]
+	var text := (result[3] as PackedByteArray).get_string_from_utf8()
+	var parsed: Variant = JSON.parse_string(text) if text.strip_edges() != "" else null
+	if code >= 200 and code < 300:
+		return {"ok": true, "data": parsed}
+	var message := "HTTP %d" % code
+	if parsed is Dictionary:
+		message = str(parsed.get("message", parsed.get("error_description", parsed.get("msg", message))))
+	return {"ok": false, "error": message, "code": code}
