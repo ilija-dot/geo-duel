@@ -4,7 +4,9 @@ A mobile geography quiz for 13–15 year olds. Challenge a friend with their pla
 answer the same 10 questions from the 8th-grade geography textbook
 („Географија за VIII одделение“, ARS Studio). Each question has 8 tiles. Several are correct,
 and **the rarer the correct answer you pick, the more points you get** (10 / 25 / 50 / 100);
-wrong answers and running out of time (20 s) score 0. Macedonian and English.
+wrong answers and running out of time (20 s) score 0. English and Macedonian.
+
+Also: **Easy / Medium / Hard** difficulty, an **avatar builder**, a **global leaderboard** (weekly, last week's champions, all time), **player-made levels** shared by code (with reporting and a word filter), and **Help (F1)** with the rules and a tutorial.
 
 Built with **Godot 4.7** (GDScript) and **Supabase** (online duels).
 
@@ -16,7 +18,7 @@ Built with **Godot 4.7** (GDScript) and **Supabase** (online duels).
 1. Create a free project at supabase.com.
 2. **Authentication → Sign In / Providers → allow anonymous sign-ins** (players get an account
    automatically, with no email).
-3. **SQL Editor → New query**: paste and run `supabase/schema.sql`, then `supabase/seed_questions.sql`.
+3. **SQL Editor → New query**: paste and run, in this order: `supabase/schema.sql`, `supabase/002_avatars_leaderboard.sql`, `supabase/003_difficulty_levels.sql`, `supabase/seed_questions.sql`.
 4. **Project Settings → API**: copy the Project URL and the `anon public` key into
    `scripts/supabase_config.gd`. (Never use the `service_role` key in the app.)
 

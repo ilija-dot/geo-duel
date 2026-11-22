@@ -4,31 +4,54 @@ extends Node
 
 
 func _ready() -> void:
+	Net.enabled = false
 	var out := OS.get_environment("SHOT_DIR")
 	Save.path = "user://shot_save.json"
 	Save.data = Save._defaults()
-	Save.data["nickname"] = "Мила"
+	Save.data["nickname"] = "Mila"
 	Save.data["player_id"] = "K7M2QX"
-	Save.data["coins"] = 120
+	Save.data["coins"] = 320
+	Save.data["avatar"] = {"skin": 1, "hair": 2, "hair_color": 4, "eyes": 1, "mouth": 0, "acc": 1, "bg": 3}
 	var main: Main = load("res://scenes/main.tscn").instantiate()
 	add_child(main)
-	await _shot(out, "1_menu_mk")
+	await _shot(out, "1_menu")
 
-	main.show_practice()
-	var quiz := main.current as QuizScreen
-	quiz.reveal_seconds = 100.0
-	await _shot(out, "2_quiz_mk")
-	quiz._choose(quiz._order[0])
-	await _shot(out, "3_reveal_mk")
+	main.show_avatar()
+	await _shot(out, "2_avatar")
 
-	L.lang = "en"
-	main.show_practice()
-	await _shot(out, "4_quiz_en")
+	main.show_leaderboard()
+	var board := main.current as LeaderboardScreen
+	var names := ["Ana", "Leo", "Mila", "Ivo", "Sara", "Marko", "Elena"]
+	var rows := []
+	for i in names.size():
+		rows.append({"rank": i + 1, "id": "K7M2QX" if names[i] == "Mila" else "P%05d" % i, "nickname": names[i],
+			"avatar": {"skin": i % 6, "hair": (i * 3) % 7, "hair_color": i % 8, "eyes": i % 5, "mouth": (i + 2) % 5, "acc": i % 7, "bg": i % 8},
+			"wins": 14 - i * 2, "played": 18 - i, "points": 2000 - i * 150})
+	await get_tree().process_frame
+	board.show_board({"rows": rows, "me": {"rank": 3, "wins": 10, "played": 16, "points": 1700}})
+	await _shot(out, "3_leaderboard")
 
-	var duel := {"id": "d3", "opponent_id": "BBBBBB", "opponent_name": "Ana", "question_ids": [1, 50, 120, 200, 260, 310, 333, 401, 450, 499],
-		"my_picks": [0, 1, 2, 3, 4, 0, 1, 2, 3, 0], "my_score": 0, "their_done": true, "their_picks": [1, 1, 1, 5, 1, 1, 6, 1, 1, 1], "their_score": 0, "finished": true}
-	main.show_result({"duel": duel, "coins": 18})
-	await _shot(out, "5_result_en")
+	main.show_practice_menu()
+	await _shot(out, "4_practice")
+
+	main.show_practice("hard")
+	(main.current as QuizScreen).reveal_seconds = 100.0
+	await _shot(out, "5_quiz_hard")
+
+	main.show_level_editor()
+	var ed := main.current as LevelEditorScreen
+	await get_tree().process_frame
+	ed._title.text = "Macedonia quiz"
+	ed.questions[0] = {"q": "Name a river in Macedonia", "answers": [{"t": "Vardar", "p": 10}, {"t": "Treska", "p": 50}, {"t": "Crna Reka", "p": 25}, {"t": "Nile", "p": 0}, {"t": "Danube", "p": 0}, {"t": "", "p": 0}, {"t": "", "p": 0}, {"t": "", "p": 0}]}
+	ed._show()
+	await _shot(out, "6_level_editor")
+
+	main.show_menu()
+	await get_tree().process_frame
+	main.show_help()
+	await _shot(out, "7_help")
+	main.help.close_help()
+
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(Save.path))
 	get_tree().quit()
 

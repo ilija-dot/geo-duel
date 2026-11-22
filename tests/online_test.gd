@@ -53,7 +53,7 @@ func _ready() -> void:
 	var duel: Dictionary = r["data"]
 	var leo_picks := [0, 1, 2, 3, 4, 5, 6, 7, 0, 1]
 	r = await Net.submit_picks(str(duel["id"]), leo_picks)
-	var expected := QuestionBank.total(duel["question_ids"], leo_picks)
+	var expected := QuestionBank.round_total(QuestionBank.round_for_duel(duel), leo_picks)
 	check(r["ok"] and int(r["data"]["my_score"]) == expected, "server score matches the app's answer key (%d)" % expected)
 	r = await Net.submit_picks(str(duel["id"]), leo_picks)
 	check(not r["ok"] and str(r["error"]).contains("already played"), "can't submit twice")
@@ -71,6 +71,53 @@ func _ready() -> void:
 	Save.data["auth"]["expires_at"] = 0  # pretend the login expired
 	r = await Net.my_duels()
 	check(r["ok"], "expired login refreshes automatically")
+
+	print("Avatar")
+	r = await Net.set_avatar({"skin": 2, "hair": 4, "acc": 6})
+	check(r["ok"], "Ana saves her avatar")
+	r = await Net.set_avatar({"evil": "<script>"})
+	check(not r["ok"], "bad avatar data is rejected")
+
+	print("Leaderboard")
+	r = await Net.leaderboard("week")
+	var top: Array = r["data"]["rows"] if r["ok"] else []
+	check(r["ok"] and top.size() >= 1 and top[0]["nickname"] == "TestLeo" and int(top[0]["wins"]) == 1, "Leo is #1 this week with 1 win")
+	check(r["data"]["me"] is Dictionary and int(r["data"]["me"]["wins"]) == 0, "Ana sees her own rank")
+	var ana_row: Array = top.filter(func(x: Dictionary) -> bool: return x["id"] == ana["player_id"])
+	check(ana_row.size() == 1 and int(ana_row[0]["avatar"].get("hair", -1)) == 4, "leaderboard shows Ana's avatar")
+
+	print("Player levels")
+	var questions := [
+		{"q": "River in Macedonia?", "answers": [{"t": "Vardar", "p": 10}, {"t": "Treska", "p": 50}, {"t": "Nile", "p": 0}, {"t": "Rhine", "p": 0}]},
+		{"q": "Lake in Macedonia?", "answers": [{"t": "Ohrid", "p": 10}, {"t": "Prespa", "p": 25}, {"t": "Dojran", "p": 50}, {"t": "Erie", "p": 0}]},
+		{"q": "Mountain in Macedonia?", "answers": [{"t": "Korab", "p": 25}, {"t": "Shar", "p": 10}, {"t": "Alps", "p": 0}, {"t": "Andes", "p": 0}]}]
+	r = await Net.create_level("Test level", questions)
+	check(r["ok"] and str(r["data"]).length() == 6, "Ana creates a level and gets a code")
+	var code := str(r.get("data", ""))
+	r = await Net.create_level("Rude level", [{"q": "shit", "answers": questions[0]["answers"]}, questions[1], questions[2]])
+	check(not r["ok"] and str(r["error"]).contains("bad words"), "bad words are blocked")
+	r = await Net.create_duel(leo["player_id"], "medium", code)
+	check(r["ok"] and r["data"]["level"] is Dictionary and r["data"]["level"]["title"] == "Test level", "Ana challenges Leo on her level")
+	r = await Net.submit_picks(str(r["data"]["id"]), [1, 2, 0])
+	check(r["ok"] and int(r["data"]["my_score"]) == 125, "level duel scored by the server (125)")
+	as_player(leo)
+	r = await Net.get_level(code.to_lower())
+	check(r["ok"] and r["data"]["creator_name"] == "TestAna", "Leo opens the level by code")
+	r = await Net.report_level(code)
+	check(r["ok"], "Leo can report the level")
+
+	print("Hard duel")
+	r = await Net.create_duel(ana["player_id"], "hard")
+	check(r["ok"] and r["data"]["difficulty"] == "hard", "hard duel created")
+	var hard_round := QuestionBank.round_for_duel(r["data"]) if r["ok"] else []
+	var all_two := hard_round.size() == 10
+	for q: Dictionary in hard_round:
+		var right := 0
+		for t: int in q["tiles"]:
+			if int(q["answers"][t]["points"]) > 0:
+				right += 1
+		all_two = all_two and right == 2
+	check(all_two, "every hard question shows exactly 2 right tiles")
 
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(Save.path))
 	print("TEST_PLAYERS %s %s" % [ana["player_id"], leo["player_id"]])

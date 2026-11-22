@@ -17,7 +17,7 @@ func _ready() -> void:
 func _defaults() -> Dictionary:
 	return {
 		"nickname": "",
-		"lang": "mk",
+		"lang": "en",  # the game starts in English
 		"player_id": "",  # your unique ID, given by the server
 		"auth": {},  # login tokens for the server (anonymous account, no email)
 		"coins": 0,
@@ -27,6 +27,9 @@ func _defaults() -> Dictionary:
 		"friends": [],  # [{"id": "K7M2QX", "name": "Ana"}]
 		"practice_seen": {},  # "question id" -> times seen in practice
 		"claimed_wins": [],  # duel ids we already paid win gems for
+		"avatar": {},  # part numbers, see AvatarParts
+		"avatar_synced": true,  # false = not yet saved on the server
+		"difficulty": "medium",  # last chosen difficulty
 	}
 
 
@@ -104,6 +107,16 @@ func nickname() -> String:
 
 func set_nickname(text: String) -> void:
 	data["nickname"] = clean_name(text)
+	save_game()
+
+
+func avatar() -> Dictionary:
+	return AvatarParts.normalize(data["avatar"])
+
+
+func set_avatar(av: Dictionary) -> void:
+	data["avatar"] = AvatarParts.normalize(av)
+	data["avatar_synced"] = false
 	save_game()
 
 

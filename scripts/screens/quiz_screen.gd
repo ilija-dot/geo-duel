@@ -1,20 +1,20 @@
 class_name QuizScreen
 extends Screen
-## The quiz: 10 questions, 8 tiles each, 20 seconds per question.
+## The quiz: one tile per shown answer, 20 seconds per question.
 ## Pick ONE tile. Wrong = 0 points. Correct = 10 / 25 / 50 / 100 points, the rarer the answer the more.
 
 const SECONDS_PER_QUESTION := 20.0
-var reveal_seconds := 2.0  # how long the answers stay revealed
 
-var question_ids: Array = []
-var seed_key := ""
-var duel: Dictionary = {}  # empty = practice
+var round: Array = []  # see QuestionBank: [{"text", "answers": [{"text", "points"}], "tiles": [...]}]
+var title := ""
+var duel: Dictionary = {}  # online duel; empty = practice
+var practice: Dictionary = {}  # {"question_ids", "difficulty"} or {"level"}
+var reveal_seconds := 2.0  # how long the answers stay revealed
 
 var _index := 0
 var _picks: Array[int] = []
 var _time_left := 0.0
 var _answering := false
-var _order: Array[int] = []
 var _tiles: Array[Button] = []
 
 var _header: Label
@@ -26,6 +26,7 @@ var _quit: Button
 
 
 func build() -> void:
+	label(title, 22)
 	_header = label("", 26)
 	_timer_bar = ProgressBar.new()
 	_timer_bar.max_value = SECONDS_PER_QUESTION
@@ -33,7 +34,7 @@ func build() -> void:
 	_timer_bar.custom_minimum_size.y = 16
 	box.add_child(_timer_bar)
 	_question = label("", 36)
-	_question.custom_minimum_size.y = 130
+	_question.custom_minimum_size.y = 120
 	_question.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label(L.t("rarity_hint"), 20)
 
@@ -58,26 +59,25 @@ func _process(delta: float) -> void:
 		_choose(-1)
 
 
-func _score_so_far() -> int:
-	return QuestionBank.total(question_ids.slice(0, _picks.size()), _picks)
+func _update_header() -> void:
+	_header.text = "%s     %s" % [L.t("question_n") % [_index + 1, round.size()],
+		L.t("score") % QuestionBank.round_total(round, _picks)]
 
 
 func _show_question() -> void:
-	var qid := int(question_ids[_index])
-	var q := QuestionBank.get_question(qid)
-	_header.text = "%s     %s" % [L.t("question_n") % [_index + 1, question_ids.size()], L.t("score") % _score_so_far()]
-	_question.text = L.pick(q["q"])
+	var q: Dictionary = round[_index]
+	_update_header()
+	_question.text = q["text"]
 	_feedback.text = ""
 
 	for child in _grid.get_children():
 		child.queue_free()
 	_tiles.clear()
-	_order = QuestionBank.tile_order(qid, seed_key)
-	for answer_index in _order:
+	for answer_index: int in q["tiles"]:
 		var b := Button.new()
-		b.text = L.pick(q["answers"][answer_index])
+		b.text = q["answers"][answer_index]["text"]
 		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		b.custom_minimum_size = Vector2(0, 104)
+		b.custom_minimum_size = Vector2(0, 100)
 		b.size_flags_horizontal = SIZE_EXPAND_FILL
 		b.size_flags_vertical = SIZE_EXPAND_FILL
 		b.focus_mode = Control.FOCUS_NONE
@@ -96,19 +96,19 @@ func _choose(answer_index: int) -> void:
 	if not _answering:
 		return
 	_answering = false
-	var qid := int(question_ids[_index])
+	var q: Dictionary = round[_index]
 	_picks.append(answer_index)
-	var won := QuestionBank.points(qid, answer_index)
+	var won := QuestionBank.round_points(q, answer_index)
 
-	# Reveal: every correct tile shows its points, wrong tiles turn red.
-	var q := QuestionBank.get_question(qid)
+	# Reveal: every correct tile shows its points, wrong tiles turn red when picked.
+	var tiles: Array = q["tiles"]
 	for i in _tiles.size():
-		var idx := _order[i]
+		var idx: int = tiles[i]
 		var tile := _tiles[i]
-		var answer: Dictionary = q["answers"][idx]
+		var pts := QuestionBank.round_points(q, idx)
 		var picked := idx == answer_index
-		if answer.get("correct", false):
-			tile.text = "%s\n+%d" % [L.pick(answer), QuestionBank.points(qid, idx)]
+		if pts > 0:
+			tile.text = "%s\n+%d" % [q["answers"][idx]["text"], pts]
 			_style_tile(tile, UI.RATING_COLORS["G"], picked)
 		else:
 			_style_tile(tile, UI.RATING_COLORS["R"] if picked else UI.colors()["done"], picked)
@@ -120,7 +120,7 @@ func _choose(answer_index: int) -> void:
 		_feedback.text = L.t("wrong")
 	else:
 		_feedback.text = L.t("right") % won
-	_header.text = "%s     %s" % [L.t("question_n") % [_index + 1, question_ids.size()], L.t("score") % _score_so_far()]
+	_update_header()
 	create_tween().tween_callback(_next).set_delay(reveal_seconds)
 
 
@@ -135,19 +135,21 @@ func _style_tile(tile: Button, color: Color, picked: bool) -> void:
 
 func _next() -> void:
 	_index += 1
-	if _index < question_ids.size():
+	if _index < round.size():
 		_show_question()
 	else:
 		_finish()
 
 
 func _finish() -> void:
-	var total := QuestionBank.total(question_ids, _picks)
+	var total := QuestionBank.round_total(round, _picks)
 	if duel.is_empty():
-		Save.mark_practice_seen(question_ids)
-		var coins := total / 20
-		Save.add_coins(coins)
-		main.show_result({"question_ids": question_ids, "picks": _picks, "coins": coins})
+		var coins := 0
+		if practice.has("question_ids"):  # no coins for player levels (they could be made too easy)
+			Save.mark_practice_seen(practice["question_ids"])
+			coins = total / 20
+			Save.add_coins(coins)
+		main.show_result({"round": round, "picks": _picks, "practice": practice, "title": title, "coins": coins})
 		return
 	_submit()
 
@@ -163,8 +165,10 @@ func _submit() -> void:
 	if not is_inside_tree():
 		return
 	if res["ok"]:
-		var coins := int(res["data"]["my_score"]) / 10
-		Save.add_coins(coins)
+		var coins := 0
+		if not (res["data"].get("level") is Dictionary):  # level duels pay nothing
+			coins = int(res["data"]["my_score"]) / 10
+			Save.add_coins(coins)
 		main.show_result({"duel": res["data"], "coins": coins})
 	elif str(res["error"]).contains("already played"):
 		main.show_duels()

@@ -41,9 +41,13 @@ func find_player(player_id: String) -> Dictionary:
 #  "their_picks", "their_score", "their_done", "finished", "created_at"}
 # their_picks/their_score stay hidden until you've played.
 
-## Starts a duel. The server picks 10 questions neither player has seen before.
-func create_duel(opponent_id: String) -> Dictionary:
-	return await _rpc("create_match", {"opponent": opponent_id})
+## Starts a duel. Built-in questions: the server picks 10 from the difficulty's pool that
+## neither player has seen before. With level_code: the duel uses that player-made level.
+func create_duel(opponent_id: String, difficulty := "medium", level_code := "") -> Dictionary:
+	var params := {"opponent": opponent_id, "difficulty": difficulty}
+	if level_code != "":
+		params["level"] = level_code
+	return await _rpc("create_match", params)
 
 
 func my_duels() -> Dictionary:
@@ -56,6 +60,40 @@ func my_duels() -> Dictionary:
 ## Sends your answers (answer index per question, -1 = no answer). The server works out the score.
 func submit_picks(duel_id: String, picks: Array) -> Dictionary:
 	return await _rpc("submit_picks", {"match_id": duel_id, "picks": picks})
+
+
+# --- Avatar & leaderboard -----------------------------------------------------------
+
+func set_avatar(avatar: Dictionary) -> Dictionary:
+	return await _rpc("set_avatar", {"av": avatar})
+
+
+## period: "week", "last_week" or "all". data = {"rows": [...top 50...], "me": {...} or null}
+func leaderboard(period: String) -> Dictionary:
+	return await _rpc("leaderboard", {"period": period})
+
+
+# --- Player-made levels ---------------------------------------------------------------
+# A level: {"id": "NVDNW8", "title", "questions": [{"q": "...", "answers": [{"t": "...", "p": 0|10|25|50|100}]}]}
+
+## Saves a new level. data = its share code.
+func create_level(title: String, questions: Array) -> Dictionary:
+	return await _rpc("create_level", {"title": title, "questions": questions})
+
+
+func get_level(code: String) -> Dictionary:
+	return await _rpc("get_level", {"code": code})
+
+
+func my_levels() -> Dictionary:
+	var res := await _rpc("my_levels", {})
+	if res["ok"] and not (res["data"] is Array):
+		res["data"] = []
+	return res
+
+
+func report_level(code: String) -> Dictionary:
+	return await _rpc("report_level", {"code": code})
 
 
 # --- Login (anonymous) ----------------------------------------------------------

@@ -1,6 +1,6 @@
 class_name MenuScreen
 extends Screen
-## Start screen: your ID, nickname, language, and the main buttons.
+## Start screen: your avatar and ID, nickname, and the main buttons.
 
 var _id_label: Label
 var _status: Label
@@ -8,16 +8,24 @@ var _duels_button: Button
 
 
 func build() -> void:
-	label(L.t("title"), 72)
-	label(L.t("tagline"), 26)
-	label(L.t("wallet") % [Save.coins(), Save.gems()], 26)
-
-	var id_row := row()
-	id_row.alignment = BoxContainer.ALIGNMENT_CENTER
-	_id_label = label("", 32, id_row)
+	label(L.t("title"), 64)
+	var me := row()
+	me.alignment = BoxContainer.ALIGNMENT_CENTER
+	var avatar_button := Button.new()
+	avatar_button.flat = true
+	avatar_button.custom_minimum_size = Vector2(120, 120)
+	avatar_button.pressed.connect(main.show_avatar)
+	var face := AvatarView.make(Save.avatar(), 120)
+	face.set_anchors_and_offsets_preset(PRESET_FULL_RECT)
+	avatar_button.add_child(face)
+	me.add_child(avatar_button)
+	var info := VBoxContainer.new()
+	me.add_child(info)
+	_id_label = label("", 30, info)
 	_id_label.autowrap_mode = TextServer.AUTOWRAP_OFF
-	var copy := button(L.t("copy"), _copy_id, id_row)
-	copy.custom_minimum_size = Vector2(170, 70)
+	label(L.t("wallet") % [Save.coins(), Save.gems()], 22, info)
+	var copy := button(L.t("copy"), _copy_id, info)
+	copy.custom_minimum_size = Vector2(170, 56)
 
 	var nick := input(L.t("nick_ph"))
 	nick.text = str(Save.data["nickname"])
@@ -27,12 +35,18 @@ func build() -> void:
 	nick.focus_exited.connect(_register)
 
 	_status = label("", 22)
-	button(L.t("challenge"), main.show_challenge)
+	button(L.t("challenge"), main.show_challenge.bind({}))
 	_duels_button = button(L.t("matches"), main.show_duels)
-	button(L.t("practice"), main.show_practice)
-	var bottom := row()
-	button(L.t("shop"), main.show_shop, bottom).size_flags_horizontal = SIZE_EXPAND_FILL
-	button(L.t("other_lang"), _toggle_language, bottom).size_flags_horizontal = SIZE_EXPAND_FILL
+	var r1 := row()
+	button(L.t("practice"), main.show_practice_menu, r1).size_flags_horizontal = SIZE_EXPAND_FILL
+	button(L.t("leaderboard"), main.show_leaderboard, r1).size_flags_horizontal = SIZE_EXPAND_FILL
+	var r2 := row()
+	button(L.t("levels"), main.show_levels, r2).size_flags_horizontal = SIZE_EXPAND_FILL
+	button(L.t("avatar"), main.show_avatar, r2).size_flags_horizontal = SIZE_EXPAND_FILL
+	var r3 := row()
+	button(L.t("shop"), main.show_shop, r3).size_flags_horizontal = SIZE_EXPAND_FILL
+	button(L.t("other_lang"), _toggle_language, r3).size_flags_horizontal = SIZE_EXPAND_FILL
+	button(L.t("help") + " (F1)", main.show_help, r3).size_flags_horizontal = SIZE_EXPAND_FILL
 
 	_show_id()
 	if not Net.is_configured():
@@ -46,7 +60,7 @@ func _show_id() -> void:
 	_id_label.text = L.t("your_id") % (id if id != "" else "------")
 
 
-## Gets/updates your player ID online, and counts duels waiting for you.
+## Gets/updates your player ID online, uploads a changed avatar, and counts duels waiting for you.
 func _register() -> void:
 	if not Net.is_configured():
 		return
@@ -60,6 +74,11 @@ func _register() -> void:
 		return
 	_status.text = ""
 	_show_id()
+	if not Save.data["avatar_synced"]:
+		var av := await Net.set_avatar(Save.avatar())
+		if av["ok"]:
+			Save.data["avatar_synced"] = true
+			Save.save_game()
 	var duels := await Net.my_duels()
 	if is_inside_tree() and duels["ok"]:
 		var waiting := 0

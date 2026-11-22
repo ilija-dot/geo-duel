@@ -40,7 +40,10 @@ func show_duels(duels: Array) -> void:
 		return
 	for d: Dictionary in duels:
 		var r := row(_list)
-		var info := label("%s\n%s" % [d["opponent_name"], status_text(d)], 28, r)
+		r.add_child(AvatarView.make(d.get("opponent_avatar", {}), 72))
+		var level: Variant = d.get("level")
+		var mode: String = L.t("level_label") % level["title"] if level is Dictionary else L.t(str(d.get("difficulty", "medium")))
+		var info := label("%s · %s\n%s" % [d["opponent_name"], mode, status_text(d)], 26, r)
 		info.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		info.size_flags_horizontal = SIZE_EXPAND_FILL
 		var my_turn: bool = d["my_picks"] == null
@@ -54,7 +57,8 @@ static func status_text(d: Dictionary) -> String:
 		return L.t("your_turn")
 	if not d["their_done"]:
 		return L.t("waiting_for") % d["opponent_name"]
-	var mine := int(d["my_score"])
-	var theirs := int(d["their_score"])
+	var round := QuestionBank.round_for_duel(d)
+	var mine := QuestionBank.round_total(round, d["my_picks"])
+	var theirs := QuestionBank.round_total(round, d["their_picks"]) if d["their_picks"] != null else int(d["their_score"])
 	var key := "won_score" if mine > theirs else ("lost_score" if mine < theirs else "draw_score")
 	return L.t(key) % [mine, theirs]
